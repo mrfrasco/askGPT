@@ -1,0 +1,128 @@
+#!/bin/bash
+#Prompt script for ChatGPT
+#Carlos Enamorado
+#Michael Frasco
+#Sean West
+#ChatGPT
+#Model Enpoint Compatibility
+#https://platform.openai.com/docs/models/overview
+#
+#
+
+#Set API Key
+API_Key=""
+json_responses=()
+current_question=0
+
+#Function to interact with ChatGPT
+chat_gpt() {
+	local prompt="$1"
+    local timestamp=$(date +"%Y%m%d_%H%M%S")
+    local filename="JSON_Responses.txt"
+
+    #creates an index system for json responses
+    local previous_index=0
+    if [[ -f "$filename" ]]; then
+        # Check if previous file exists
+        previous_index=$(tail -n 1 "$filename")
+        previous_index=$((previous_index + 1))
+    fi
+
+    
+    #escaped_str=$(python3 escape_json.py "$1")
+
+
+    #sends post request to model gpt-3.5 turbo with content $prompt and role system
+	local response=$(curl -s -X POST \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer $API_Key" \
+		-d "{\"messages\": [{\"role\": \"system\", \"content\": \"$prompt\"}], \"model\": \"gpt-3.5-turbo\"}" \
+		"https://api.openai.com/v1/chat/completions")
+
+    #saves raw json responses to $filename with timestamp and index number
+    echo "$response" >> "$filename"
+    echo "$timestamp" >> "$filename"
+    echo "$previous_index" >> "$filename"
+
+    #sends json to print response
+    print_field_value "$response" "content"
+    unset prompt timestamp filename previous_index response
+}
+
+
+# Function to extract field (default content) value from JSON
+print_field_value() {
+    
+    local response=$1
+    local field=$2
+    echo -e "\033[34m$field\033[0m"
+    echo "$response" | grep -oP "\"$field\":\s*\"\K[^\"]+" | sed 's/\\n/\
+/g'
+    
+    unset response field
+}
+
+#Prompts the user for a question
+ask_question() {
+        read -p "Ask a Question: " question
+        local response=$(chat_gpt "$question")
+        echo "Response: $response"
+        json_responses+=("$response")
+        ((current_question++))
+        echo "$current_question"
+    unset response ask
+}
+
+#simple way of checking recent responses
+check_history() {
+    echo "Current question is: $current_question"
+    read -p "Enter a number between 1 and $current_question: " history_number
+
+    # Subtract 1 from history_number to match the array index
+    local index=$((history_number - 1))
+
+    # Check if the index is within the valid range
+    if ((index >= 0 && index < current_question)); then
+        echo "${json_responses[index]}"
+    else
+        echo "Invalid history number."
+    fi
+}
+
+set_API_key() {
+    read -p "Please provide an API key: " new_API
+    API_Key=$new_API
+    unset new_API
+}
+
+while true; do
+    echo "----------------------------------------"
+	  echo "CCCC H  H    A   TTTTT GGGG  PPPP TTTTT "
+	  echo "C    HHHH   A A    T   G     P  P   T   "
+  	echo "C    H  H  AAAAA   T   G GG  PPPP   T   "
+  	echo "CCCC H  H A     A  T   GGGG  P      T   "
+    echo "----------------------------------------"
+    echo "Menu:"
+    echo "1. Ask a question"
+    echo "2. See History"
+    echo "3. Set API Key"
+    echo "4. exit"
+
+    read -p "Enter your choice (1-5): " choice
+
+    case $choice in
+        1)
+            ask_question 
+            ;;
+        2)
+            check_history
+            ;;
+        3)
+            set_API_key
+            ;;
+        4)
+            unset API_key current_question json_responses
+            exit 0
+            ;;
+    esac
+done
